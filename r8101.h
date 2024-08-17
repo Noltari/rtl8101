@@ -1162,6 +1162,8 @@ enum RTL8101_register_content {
         LinkStatus = 0x02,
         FullDup = 0x01,
 
+#define RTL8101_FULL_DUPLEX_MASK (FullDup)
+
         /* ResetCounterCommand */
         CounterReset = 0x1,
         /* DumpCounterCommand */

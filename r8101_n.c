@@ -39,6 +39,7 @@ This driver is modified from r8169.c in Linux kernel 2.6.18
 #include <linux/module.h>
 #include <linux/version.h>
 #include <linux/pci.h>
+#include <linux/phy.h>
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/delay.h>
@@ -2838,6 +2839,34 @@ rtl8101_issue_offset_99_event(struct rtl8101_private *tp)
         }
 }
 
+static unsigned int rtl8101_phy_duplex(u8 status)
+{
+        unsigned int duplex = DUPLEX_UNKNOWN;
+
+        if (status & LinkStatus) {
+                if (status & RTL8101_FULL_DUPLEX_MASK)
+                        duplex = DUPLEX_FULL;
+                else
+                        duplex = DUPLEX_HALF;
+        }
+
+        return duplex;
+}
+
+static int rtl8101_phy_speed(u8 status)
+{
+        int speed = SPEED_UNKNOWN;
+
+        if (status & LinkStatus) {
+                if (status & _100bps)
+                        speed = SPEED_100;
+                else if (status & _10bps)
+                        speed = SPEED_10;
+        }
+
+        return speed;
+}
+
 static void
 rtl8101_check_link_status(struct net_device *dev)
 {
@@ -2913,8 +2942,15 @@ rtl8101_check_link_status(struct net_device *dev)
                         tp->phy_reg_aner = rtl8101_mdio_read(tp, MII_EXPANSION);
                         tp->phy_reg_anlpar = rtl8101_mdio_read(tp, MII_LPA);
 
-                        if (netif_msg_ifup(tp))
-                                printk(KERN_INFO PFX "%s: link up\n", dev->name);
+                        if (netif_msg_ifup(tp)) {
+                                const u8 phy_status = RTL_R8(tp, PHYstatus);
+                                const unsigned int phy_duplex = rtl8101_phy_duplex(phy_status);
+                                const int phy_speed = rtl8101_phy_speed(phy_status);
+                                printk(KERN_INFO PFX "%s: Link is Up - %s/%s\n",
+                                       dev->name,
+                                       phy_speed_to_str(phy_speed),
+                                       phy_duplex_to_str(phy_duplex));
+                        }
                 } else {
                         if (tp->mcfg == CFG_METHOD_11 || tp->mcfg == CFG_METHOD_12 ||
                             tp->mcfg == CFG_METHOD_13) {
@@ -2925,7 +2961,7 @@ rtl8101_check_link_status(struct net_device *dev)
                                 rtl8101_mdio_write(tp, 0x1F, 0x0000);
                         }
                         if (netif_msg_ifdown(tp))
-                                printk(KERN_INFO PFX "%s: link down\n", dev->name);
+                                printk(KERN_INFO PFX "%s: Link is Down\n", dev->name);
 
                         tp->phy_reg_aner = 0;
                         tp->phy_reg_anlpar = 0;
